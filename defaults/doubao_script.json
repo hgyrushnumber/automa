@@ -1,0 +1,229 @@
+{
+  "config": {
+    "autoApprove": true,
+    "autoStart": false,
+    "showWarnings": false
+  },
+  "script": [
+    {
+      "command": "goto",
+      "description": "打开豆包聊天界面",
+      "url": "https://www.doubao.com/chat/"
+    },
+    {
+      "command": "init_variable",
+      "description": "对话轮数初始化",
+      "type": "number",
+      "value": 1,
+      "variableName": "chat_num"
+    },
+    {
+      "command": "init_variable",
+      "description": "对话最大轮数初始化",
+      "type": "number",
+      "value": 10,
+      "variableName": "chat_max_num"
+    },
+    {
+      "command": "init_variable",
+      "description": "“是”/“否”回答序号初始化",
+      "type": "number",
+      "value": 1,
+      "variableName": "yes_or_no_answer_index"
+    },
+    {
+      "command": "init_variable",
+      "description": "统计结果回答序号初始化",
+      "type": "number",
+      "value": 3,
+      "variableName": "probability_answer_index"
+    },
+    {
+      "command": "init_variable",
+      "description": "“是”统计次数初始化",
+      "type": "number",
+      "value": 0,
+      "variableName": "yes_num"
+    },
+    {
+      "command": "init_variable",
+      "description": "“否”统计次数初始化",
+      "type": "number",
+      "value": 0,
+      "variableName": "no_num"
+    },
+    {
+      "command": "init_variable",
+      "description": "“是”统计频率初始化",
+      "type": "number",
+      "value": 0,
+      "variableName": "yes_frequency"
+    },
+    {
+      "command": "type",
+      "description": "在输入框中输入要求",
+      "label": "loop_start",
+      "selector": "textarea[data-testid=\"chat_input_input\"]",
+      "timeout": 5000,
+      "value": "请你在“是”和“否”之间随机选择一个字回答我，这是我第${chat_num}次问你"
+    },
+    {
+      "command": "click",
+      "description": "点击发送按钮",
+      "selector": "#flow-end-msg-send"
+    },
+    {
+      "command": "scrape_text",
+      "description": "等待和抓取回答文本",
+      "outputVariable": "yes_or_no_answer",
+      "selector": {
+        "by": "data-testid",
+        "index": "${yes_or_no_answer_index}",
+        "value": "message_text_content"
+      },
+      "stability": 2000,
+      "timeout": 600000
+    },
+    {
+      "command": "calculate",
+      "description": "“是”/“否”回答序号更新",
+      "expression": "yes_or_no_answer_index + 4",
+      "outputVariable": "yes_or_no_answer_index"
+    },
+    {
+      "command": "conditional_jump",
+      "condition": "yes_or_no_answer == '是'",
+      "description": "检查回答结果是否为“是”",
+      "targetLabel": "if_yes"
+    },
+    {
+      "command": "conditional_jump",
+      "condition": "yes_or_no_answer == '否'",
+      "description": "检查回答结果是否为“否”",
+      "targetLabel": "if_no"
+    },
+    {
+      "command": "jump",
+      "description": "若为其他，程序可结束",
+      "targetLabel": "if_other"
+    },
+    {
+      "command": "calculate",
+      "description": "“是”统计次数更新",
+      "expression": "yes_num + 1",
+      "label": "if_yes",
+      "outputVariable": "yes_num"
+    },
+    {
+      "command": "jump",
+      "description": "准备更新频率统计结果",
+      "targetLabel": "update"
+    },
+    {
+      "command": "calculate",
+      "description": "“否”统计次数更新",
+      "expression": "no_num + 1",
+      "label": "if_no",
+      "outputVariable": "no_num"
+    },
+    {
+      "command": "jump",
+      "description": "准备更新频率统计结果",
+      "targetLabel": "update"
+    },
+    {
+      "command": "calculate",
+      "description": "频率统计结果更新",
+      "expression": "yes_num / chat_num",
+      "label": "update",
+      "outputVariable": "yes_frequency"
+    },
+    {
+      "command": "calculate",
+      "description": "频率统计结果继续更新",
+      "expression": "yes_frequency * 100",
+      "outputVariable": "yes_frequency"
+    },
+    {
+      "command": "type",
+      "description": "在输入框中输入更新后的统计结果",
+      "selector": "textarea[data-testid=\"chat_input_input\"]",
+      "timeout": 5000,
+      "value": "你上一次的回答为“${yes_or_no_answer}”，你回答“是”的次数为${yes_num}次，回答“否”的次数为${no_num}次，可计算得到你回答“是”的频率为${yes_frequency}%，请你评价一下这个统计结果"
+    },
+    {
+      "command": "calculate",
+      "description": "对话轮数更新",
+      "expression": "chat_num + 1",
+      "outputVariable": "chat_num"
+    },
+    {
+      "command": "click",
+      "description": "点击发送按钮",
+      "selector": "#flow-end-msg-send"
+    },
+    {
+      "command": "scrape_text",
+      "description": "等待和抓取回答文本",
+      "outputVariable": "probability_answer",
+      "selector": {
+        "by": "data-testid",
+        "index": "${probability_answer_index}",
+        "value": "message_text_content"
+      },
+      "stability": 2000,
+      "timeout": 600000
+    },
+    {
+      "command": "calculate",
+      "description": "统计结果回答序号更新",
+      "expression": "probability_answer_index + 4",
+      "outputVariable": "probability_answer_index"
+    },
+    {
+      "command": "conditional_jump",
+      "condition": "chat_num <= chat_max_num",
+      "description": "检查是否达到最大对话轮数",
+      "targetLabel": "loop_start"
+    },
+    {
+      "command": "type",
+      "description": "在输入框中输入结束语",
+      "selector": "textarea[data-testid=\"chat_input_input\"]",
+      "timeout": 5000,
+      "value": "已达到最大对话轮数，对话结束"
+    },
+    {
+      "command": "click",
+      "description": "点击发送按钮",
+      "selector": "#flow-end-msg-send"
+    },
+    {
+      "command": "jump",
+      "description": "正常完成任务",
+      "targetLabel": "loop_end"
+    },
+    {
+      "command": "type",
+      "description": "在输入框中输入结束语",
+      "label": "if_other",
+      "selector": "textarea[data-testid=\"chat_input_input\"]",
+      "timeout": 5000,
+      "value": "你的回答为“${yes_or_no_answer}”，你没有遵守规则，对话结束"
+    },
+    {
+      "command": "click",
+      "description": "点击发送按钮",
+      "selector": "#flow-end-msg-send"
+    },
+    {
+      "command": "jump",
+      "description": "未能正常完成任务",
+      "targetLabel": "loop_end"
+    },
+    {
+      "description": "任务结束",
+      "label": "loop_end"
+    }
+  ]
+}

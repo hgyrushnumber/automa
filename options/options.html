@@ -1,0 +1,67 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="options.css">
+</head>
+<body>
+    <div class="container">
+        <h1>脚本管理器</h1>
+
+        <!-- 脚本管理栏 -->
+        <div class="script-manager">
+            <div class="script-selection-group">
+                <select id="scriptSelector"></select>
+                <button id="setActiveBtn">设为活动脚本</button>
+                <span id="activeScriptIndicator"></span>
+            </div>
+            <div class="script-actions-group">
+                <button id="newScriptBtn">新建</button>
+                <button id="saveScriptBtn">保存</button>
+                <button id="saveAsBtn">另存为</button>
+                <button id="deleteScriptBtn">删除</button>
+                <button id="exportScriptBtn">导出</button>
+                <label for="importScriptInput" class="button-like-label">导入</label>
+                <input type="file" id="importScriptInput" accept=".json" style="display: none;">
+            </div>
+        </div>
+
+        <div id="message"></div>
+
+        <!-- 全局配置区 -->
+        <div class="config-section">
+            <h3>全局配置</h3>
+            <div id="configEditor" class="config-grid">
+                <label for="config-autoApprove">自动执行下一步:</label>
+                <input type="checkbox" id="config-autoApprove">
+                
+                <label for="config-showWarnings">显示警告:</label>
+                <input type="checkbox" id="config-showWarnings">
+
+                <label for="config-autoStart">浏览器启动时自动运行:</label>
+                <input type="checkbox" id="config-autoStart">
+            </div>
+        </div>
+
+        <!-- 指令列表 -->
+        <h2>指令列表</h2>
+        <ul id="step-list" class="step-list">
+            <!-- 指令将由JS动态生成 -->
+        </ul>
+        <button id="addStepBtn">添加新指令</button>
+    </div>
+
+    <!-- 指令编辑模态框 -->
+    <div id="step-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>编辑指令</h2>
+            <form id="step-form">
+                <input type="hidden" id="editing-step-index">
+                <!-- 表单字段将由JS动态生成 -->
+            </form>
+            <button id="saveStepBtn">保存指令</button>
+        </div>
+    </div>
+    <script src="options.js"></script>
+</body>
+</html>
