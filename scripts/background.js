@@ -5,7 +5,9 @@ let warnings = []; // 警告信息
 let completionMessage = null; // 用于存储任务完成时的消息
 let scriptConfig = { // 默认脚本配置
     "autoApprove": true,
-    "showWarnings": true
+    "showWarnings": true,
+    "autoStart": false, 
+    "restartOnError": false
 };
 let currentScript = []; // 当前脚本
 let currentStep = 0; // 当前步骤，作为程序计数器
@@ -232,7 +234,7 @@ async function startScript(sendResponse) {
         };
     }
     
-    scriptConfig = fullScript.config || { "autoApprove": true, "showWarnings": true };
+    scriptConfig = fullScript.config || { "autoApprove": true, "showWarnings": true, "restartOnError": false };
     currentScript = fullScript.script || [];
 
     // 预处理脚本，创建标签映射
@@ -550,8 +552,8 @@ async function executeNextStep() {
                 }
                 break;
             case 'api_request':
-                if (!step.url || !step.outputs) {
-                    throw new Error(`api_request 命令需要 "url" 和 "outputs" 参数。`);
+                if (!step.url) {
+                    throw new Error(`api_request 命令需要 "url" 参数。`);
                 }
 
                 const controller = new AbortController();
@@ -586,35 +588,39 @@ async function executeNextStep() {
                     
                     try {
                         const responseJson = JSON.parse(responseText);
-                        // 辅助函数，用于通过点符号路径从对象中获取值
-                        const getValueByPath = (obj, path) => {
-                            return path.split('.').reduce((acc, part) => acc && acc[part], obj);
-                        };
-
-                        for (const path in step.outputs) {
-                            if (step.outputs.hasOwnProperty(path)) {
-                                const variableName = step.outputs[path];
-                                const value = getValueByPath(responseJson, path);
-                                if (value !== undefined) {
-                                    const type = typeof value === 'number' ? 'number' : 'string';
-                                    let finalValue = value;
-                                    if (type === 'string' && typeof value === 'object' && value !== null) {
-                                        finalValue = JSON.stringify(value);
+                        // 仅当定义了 outputs 时才处理
+                        if (step.outputs) {
+                            const getValueByPath = (obj, path) => {
+                                return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+                            };
+                            for (const path in step.outputs) {
+                                if (step.outputs.hasOwnProperty(path)) {
+                                    const variableName = step.outputs[path];
+                                    const value = getValueByPath(responseJson, path);
+                                    if (value !== undefined) {
+                                        const type = typeof value === 'number' ? 'number' : 'string';
+                                        let finalValue = value;
+                                        if (type === 'string' && typeof value === 'object' && value !== null) {
+                                            finalValue = JSON.stringify(value);
+                                        }
+                                        variables[variableName] = { value: finalValue, type: type };
+                                    } else {
+                                        throw new Error(`在API响应中未找到路径 "${path}"。`);
                                     }
-                                    variables[variableName] = { value: finalValue, type: type };
-                                } else {
-                                    throw new Error(`在API响应中未找到路径 "${path}"。`);
                                 }
                             }
                         }
                     } catch (error) {
-                        // 如果响应不是有效的JSON，但用户可能只想获取原始文本
-                        if (step.outputs.hasOwnProperty('_raw')) {
-                            const variableName = step.outputs['_raw'];
-                            variables[variableName] = { value: responseText, type: 'string' };
-                        } else {
-                            throw new Error(`API 响应不是有效的 JSON，且未指定 "_raw" 输出变量。解析错误: ${error.message}`);
+                        // 仅当定义了 outputs 时才处理解析错误
+                        if (step.outputs) {
+                            if (step.outputs.hasOwnProperty('_raw')) {
+                                const variableName = step.outputs['_raw'];
+                                variables[variableName] = { value: responseText, type: 'string' };
+                            } else {
+                                throw new Error(`API 响应不是有效的 JSON，且未指定 "_raw" 输出变量。解析错误: ${error.message}`);
+                            }
                         }
+                        // 如果没有定义 outputs，则忽略 JSON 解析错误
                     }
                 } catch (error) {
                     if (error.name === 'AbortError') {
@@ -679,6 +685,40 @@ async function executeNextStep() {
                 const value = tabInfo[step.getProperty];
                 variables[step.outputVariable] = { value: value, type: 'string' };
                 break;
+            case 'get_cookies':
+                if (!step.outputVariable) {
+                    throw new Error(`get_cookies 命令需要 "outputVariable" 参数。`);
+                }
+
+                // 构建 cookie 查询的 details 对象
+                const cookieDetails = {};
+                if (step.url) {
+                    cookieDetails.url = step.url;
+                } else {
+                    // 如果没有提供url，就使用当前活动标签页的url
+                    const tabInfo = await chrome.tabs.get(activeTabId);
+                    cookieDetails.url = tabInfo.url;
+                }
+
+                // 支持 chrome.cookies.get/getAll 的所有过滤参数
+                if (step.name) cookieDetails.name = step.name;
+                if (step.domain) cookieDetails.domain = step.domain;
+                if (step.path) cookieDetails.path = step.path;
+                if (step.secure) cookieDetails.secure = step.secure;
+                if (step.session) cookieDetails.session = step.session;
+
+                // 如果指定了 name，则获取单个 cookie
+                if (step.name) {
+                    const cookie = await chrome.cookies.get(cookieDetails);
+                    // 将 cookie 对象（或 null）转换为 JSON 字符串存储
+                    variables[step.outputVariable] = { value: JSON.stringify(cookie), type: 'string' };
+                } else {
+                    // 否则获取所有匹配的 cookies
+                    const cookies = await chrome.cookies.getAll(cookieDetails);
+                    // 将 cookies 数组转换为 JSON 字符串存储
+                    variables[step.outputVariable] = { value: JSON.stringify(cookies), type: 'string' };
+                }
+                break;
             default:
                 // 对于带标签的空操作步骤，直接跳过
                 if (step.label && !step.command) break;
@@ -737,9 +777,22 @@ async function executeNextStep() {
                 message: error.message,
                 details: step
             };
-            state = 'error';
-            if (keepAliveInterval) clearInterval(keepAliveInterval); // 停止保活
-            broadcastStatus();
+
+            if (scriptConfig.restartOnError) {
+                console.log("脚本出错，根据配置将在2秒后重启...", errorInfo);
+                // 广播一次错误状态，以便UI可以短暂显示错误信息
+                state = 'error';
+                broadcastStatus();
+                // 然后重置并重启
+                setTimeout(() => {
+                    stopScript(); // 重置状态
+                    startScript(); // 重启脚本
+                }, 2000);
+            } else {
+                state = 'error';
+                if (keepAliveInterval) clearInterval(keepAliveInterval); // 停止保活
+                broadcastStatus();
+            }
         }
     }
 }

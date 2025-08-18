@@ -77,6 +77,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 { name: "continueOnError", type: "checkbox", default: false, description: "如果勾选，此步骤出错时脚本将继续执行。" }
             ]
         },
+        "get_cookies": {
+            description: "获取指定URL下的浏览器Cookies。",
+            params: [
+                { name: "outputVariable", type: "text", required: true, placeholder: "cookies_result_var", description: "用于存储结果的变量名（结果为JSON字符串）。" },
+                { name: "url", type: "text", placeholder: "https://example.com", description: "要获取Cookie的URL。如果留空，则使用当前活动标签页的URL。" },
+                { name: "name", type: "text", placeholder: "session_id", description: "要获取的特定Cookie的名称。如果提供，则返回单个Cookie对象；否则返回所有匹配的Cookie数组。" },
+                { name: "domain", type: "text", placeholder: ".example.com", description: "按域名过滤Cookie。" },
+                { name: "path", type: "text", placeholder: "/", description: "按路径过滤Cookie。" },
+                { name: "secure", type: "checkbox", description: "筛选安全（secure）标志的Cookie。" },
+                { name: "session", type: "checkbox", description: "筛选会话（session）Cookie。" },
+                { name: "description", type: "text", placeholder: "e.g., 获取登录session" },
+                { name: "continueOnError", type: "checkbox", default: false, description: "如果勾选，此步骤出错时脚本将继续执行。" }
+            ]
+        },
         "parse_number": {
             description: "将一个字符串类型的变量转换为数字类型。",
             params: [
@@ -208,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
             description: "发起一个网络请求并解析返回的JSON。",
             params: [
                 { name: "url", type: "text", required: true, placeholder: "https://api.example.com/data", description: "请求的目标URL。" },
-                { name: "outputs", type: "textarea", required: true, placeholder: '{\n  "user.name": "username_var",\n  "user.id": "userId_var"\n}', description: "定义如何从JSON响应中提取数据并存入变量。" },
+                { name: "outputs", type: "textarea", required: false, placeholder: '{\n  "user.name": "username_var",\n  "user.id": "userId_var"\n}', description: "定义如何从JSON响应中提取数据并存入变量。" },
                 { name: "data", type: "textarea", placeholder: 'POST请求体, e.g., {"key": "value"}', description: "如果提供，将使用POST方法。" },
                 { name: "header", type: "textarea", placeholder: '请求头, e.g., {"Auth": "Bearer ..."}', description: "HTTP请求头。" },
                 { name: "timeout", type: "text", default: 30000, description: "请求的超时时间（毫秒）。" },
@@ -269,6 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentScriptData.config.autoApprove = document.getElementById('config-autoApprove').checked;
         currentScriptData.config.showWarnings = document.getElementById('config-showWarnings').checked;
         currentScriptData.config.autoStart = document.getElementById('config-autoStart').checked;
+        currentScriptData.config.restartOnError = document.getElementById('config-restartOnError').checked;
 
         scripts[currentScriptName] = currentScriptData;
         await chrome.storage.local.set({ scripts: scripts });
@@ -287,6 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('config-autoApprove').checked = !!config.autoApprove;
         document.getElementById('config-showWarnings').checked = !!config.showWarnings;
         document.getElementById('config-autoStart').checked = !!config.autoStart;
+        document.getElementById('config-restartOnError').checked = !!config.restartOnError;
     }
 
     function updateActiveIndicator() {
@@ -477,8 +493,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Populate value
             const input = container.querySelector(`[name="${field.name}"]`);
             if (input && step[field.name] !== undefined) {
-                if (input.type === 'checkbox') input.checked = !!step[field.name];
-                else input.value = step[field.name];
+                if (input.type === 'checkbox') {
+                    input.checked = !!step[field.name];
+                } else {
+                    const value = step[field.name];
+                    // 如果值是对象（且不为null），则格式化为JSON字符串
+                    if (typeof value === 'object' && value !== null) {
+                        input.value = JSON.stringify(value, null, 2);
+                    } else {
+                        input.value = value;
+                    }
+                }
             }
         });
     }
@@ -602,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newName = prompt("请输入新脚本的名称:", `script_${Date.now()}`);
         if (newName && !scripts[newName]) {
             const wasEmpty = Object.keys(scripts).length === 0;
-            scripts[newName] = { config: { autoApprove: true, showWarnings: true, autoStart: false }, script: [] };
+            scripts[newName] = { config: { autoApprove: true, showWarnings: true, autoStart: false, restartOnError: false }, script: [] };
             await chrome.storage.local.set({ scripts });
             currentScriptName = newName;
             if (wasEmpty) {
@@ -823,7 +848,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('newScriptBtnEmpty').addEventListener('click', async () => {
             const newName = prompt("请输入新脚本的名称:", `script_${Date.now()}`);
             if (newName && !scripts[newName]) {
-                scripts[newName] = { config: { autoApprove: true, showWarnings: true, autoStart: false }, script: [] };
+                scripts[newName] = { config: { autoApprove: true, showWarnings: true, autoStart: false, restartOnError: false }, script: [] };
                 await chrome.storage.local.set({ scripts });
                 // Reload the entire page to get the full UI back
                 window.location.reload();
