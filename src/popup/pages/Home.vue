@@ -48,6 +48,15 @@
         class="search-input w-full"
       />
     </div>
+    <div class="mt-2 flex gap-2">
+      <ui-input
+        v-model="state.quickUrl"
+        placeholder="https://seller.ozon.ru/app/messenger?channel=SCRM"
+        autocomplete="off"
+        class="w-full"
+      />
+      <ui-button class="shrink-0" @click="openQuickUrl">Go</ui-button>
+    </div>
     <ui-tabs
       v-if="showTab"
       v-model="state.activeTab"
@@ -221,6 +230,7 @@ const sortState = shallowReactive({
 });
 const state = shallowReactive({
   query: '',
+  quickUrl: 'https://seller.ozon.ru/app/messenger?channel=SCRM',
   teams: [],
   cardHeight: 255,
   retrieved: false,
@@ -292,6 +302,14 @@ function openDocs() {
     'https://docs.extension.automa.site/guide/quick-start.html#recording-actions',
     '_blank'
   );
+}
+function openQuickUrl() {
+  try {
+    const targetUrl = new URL(state.quickUrl).toString();
+    window.open(targetUrl, '_blank');
+  } catch (error) {
+    console.error(error);
+  }
 }
 function closeSettingsPopup() {
   state.showSettingsPopup = false;
